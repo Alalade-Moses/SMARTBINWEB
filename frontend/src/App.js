@@ -209,9 +209,16 @@ function App() {
     const handleCollectBin = async (binId) => {
         try {
             setBins(prev => prev.map(b => b.id === binId ? { ...b, current_fill_kg: 0.0, status: 'EMPTY', predicted_full: null } : b));
+            setRoute(prevRoute => {
+                if (!prevRoute || !prevRoute.stops) return prevRoute;
+                return {
+                    ...prevRoute,
+                    stops: prevRoute.stops.map(s => s.bin_id === binId ? { ...s, status: 'COLLECTED' } : s)
+                };
+            });
+            setSelectedBinId(null);
             await axios.post(`/api/bins/${binId}/empty`);
-            addToast(`♻️ Bin #${binId} successfully marked as collected & emptied!`, "success");
-            await handleSelectBin(binId);
+            addToast(`♻️ Bin #${binId} marked as collected! Route stop status updated to COLLECTED.`, "success");
             await fetchData(false);
         } catch (error) {
             console.error("Error collecting bin:", error);
@@ -398,7 +405,9 @@ function App() {
         (b.status === 'FULL' || (b.current_fill_kg / b.capacity_kg) >= 0.7) && b.status !== 'EMPTY'
     ), [areaBins]);
 
-    const visibleBins = showUrgentOnly ? urgentBins : areaBins;
+    const activeAreaBins = useMemo(() => areaBins.filter(b => b.status !== 'EMPTY'), [areaBins]);
+
+    const visibleBins = showUrgentOnly ? urgentBins : activeAreaBins;
 
     const areaSummary = useMemo(() => {
         const total = areaBins.length;

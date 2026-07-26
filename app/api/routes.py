@@ -61,8 +61,7 @@ def get_areas():
 @api_bp.route('/bins/<int:bin_id>/empty', methods=['POST'])
 @jwt_required()
 def empty_bin(bin_id):
-    
-    bin_to_empty = Bin.query.get(bin_id)
+    bin_to_empty = Bin.query.filter_by(bin_id=bin_id).first()
 
     if not bin_to_empty:
         return jsonify({"message": "Bin not found."}), 404
@@ -72,32 +71,21 @@ def empty_bin(bin_id):
         bin_to_empty.status = 'EMPTY'
         bin_to_empty.predicted_full = None
 
-        stop_to_update = RouteBin.query.filter_by(bin_id=bin_id)                                .join(Route)                                .filter(Route.area_name == bin_to_empty.area_name,
-                                        RouteBin.status.in_(['PENDING', 'SKIPPED']))                                .order_by(RouteBin.route_id.desc())                                .first()
+        stops = RouteBin.query.filter_by(bin_id=bin_id).all()
+        for stop in stops:
+            if stop.status in ['PENDING', 'SKIPPED']:
+                stop.status = 'COLLECTED' if stop.status == 'PENDING' else 'COLLECTED_SKIP'
+                db.session.add(stop)
+                if stop.route:
+                    all_finished = all(s.status in ['COLLECTED', 'SKIPPED', 'COLLECTED_SKIP'] for s in stop.route.stops)
+                    if all_finished:
+                        stop.route.status = 'COMPLETED'
+                        stop.route.completed_at = datetime.now(timezone.utc)
 
-        if stop_to_update:
-            if stop_to_update.status == 'SKIPPED':
-                stop_to_update.status = 'COLLECTED_SKIP'
-                logger.info(f"Route stop for Bin {bin_id} on Route {stop_to_update.route_id} updated to COLLECTED_SKIP.")
-            else:
-                stop_to_update.status = 'COLLECTED'
-                logger.info(f"Route stop for Bin {bin_id} on Route {stop_to_update.route_id} updated to COLLECTED.")
-
-            db.session.add(stop_to_update)
-
-            
-            route = stop_to_update.route
-            all_stops_finished = all(s.status in ['COLLECTED', 'SKIPPED', 'COLLECTED_SKIP'] for s in route.stops)
-            if all_stops_finished:
-                route.status = 'COMPLETED'
-                route.completed_at = datetime.now(timezone.utc)
-                logger.info(f"Route {route.route_id} marked as COMPLETED.")
-
-        
         history_entry = BinHistory(
-            bin_id = bin_to_empty.bin_id,
-            fill_level_kg = 0.0,
-            read_time = datetime.now(timezone.utc)
+            bin_id=bin_to_empty.bin_id,
+            fill_level_kg=0.0,
+            read_time=datetime.now(timezone.utc)
         )
 
         db.session.add(bin_to_empty)
@@ -106,7 +94,6 @@ def empty_bin(bin_id):
 
         logger.info(f"Bin {bin_id} marked as EMPTY by API call.")
 
-        
         return jsonify({
             'id': bin_to_empty.bin_id,
             'status': bin_to_empty.status,
@@ -116,7 +103,7 @@ def empty_bin(bin_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error emptying bin {bin_id}: {e}")
-        return jsonify({"message": "Error updating bin."}), 500
+        return jsonify({"message": f"Error updating bin: {str(e)}"}), 500
 
 
 @api_bp.route('/bins/<int:bin_id>/history', methods=['GET'])
