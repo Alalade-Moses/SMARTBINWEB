@@ -208,11 +208,15 @@ function App() {
 
     const handleCollectBin = async (binId) => {
         try {
+            setBins(prev => prev.map(b => b.id === binId ? { ...b, current_fill_kg: 0.0, status: 'EMPTY', predicted_full: null } : b));
             await axios.post(`/api/bins/${binId}/empty`);
+            addToast(`♻️ Bin #${binId} successfully marked as collected & emptied!`, "success");
             await handleSelectBin(binId);
             await fetchData(false);
         } catch (error) {
             console.error("Error collecting bin:", error);
+            addToast(`Could not mark Bin #${binId} as collected.`, "error");
+            await fetchData(false);
         }
     };
 
@@ -558,9 +562,23 @@ function App() {
                                     <b>Est. Full:</b> {bin.predicted_full ? formatPredictedFull(bin.predicted_full) : 'Analyzing...'}<br />
                                     {renderHistorySparkline(bin)}
                                     <br />
-                                    {bin.status !== 'EMPTY' && (role !== 'driver' || stop) && (
-                                        <button onClick={() => handleCollectBin(bin.id)} style={{width: '100%', cursor: 'pointer'}}>
-                                            Mark as Collected
+                                    {bin.status !== 'EMPTY' && (
+                                        <button
+                                            onClick={() => handleCollectBin(bin.id)}
+                                            style={{
+                                                width: '100%',
+                                                cursor: 'pointer',
+                                                marginTop: '8px',
+                                                background: 'linear-gradient(135deg, #00b09b, #96c93d)',
+                                                color: '#000',
+                                                fontWeight: 'bold',
+                                                border: 'none',
+                                                padding: '8px 12px',
+                                                borderRadius: '6px',
+                                                boxShadow: '0 2px 8px rgba(0,176,155,0.4)'
+                                            }}
+                                        >
+                                            ✓ Mark as Collected
                                         </button>
                                     )}
                                 </Popup>
@@ -689,10 +707,77 @@ function App() {
                                     const predictedFullText = formatPredictedFull(bin.predicted_full);
 
                                     return (
-                                        <div key={bin.id} className="urgent-item">
-                                            <div><b>#{bin.id}</b> • {fillPercent}%</div>
-                                            <div className="urgent-item-meta">{urgencyReason}</div>
-                                            <div className="urgent-item-meta">Predicted full: {predictedFullText}</div>
+                                        <div key={bin.id} className="urgent-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                            <div>
+                                                <div><b>Bin #{bin.id}</b> • <span style={{color: bin.status === 'FULL' ? '#ef4444' : '#f59e0b'}}>{fillPercent}%</span></div>
+                                                <div className="urgent-item-meta">{urgencyReason}</div>
+                                                <div className="urgent-item-meta">Predicted full: {predictedFullText}</div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleCollectBin(bin.id)}
+                                                style={{
+                                                    background: 'rgba(46, 204, 113, 0.2)',
+                                                    border: '1px solid #2ecc71',
+                                                    color: '#2ecc71',
+                                                    fontWeight: 'bold',
+                                                    padding: '5px 10px',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.78rem'
+                                                }}
+                                            >
+                                                ✓ Collect
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {role === 'driver' && (
+                    <div className="sidebar-section">
+                        <h3 className="section-title">🚛 Driver Collection Panel</h3>
+                        <div style={{background: 'rgba(0,176,155,0.1)', border: '1px solid rgba(0,176,155,0.3)', padding: '10px', borderRadius: '8px', marginBottom: '12px'}}>
+                            <p style={{margin: 0, fontSize: '0.85rem', color: '#e2e8f0'}}>
+                                Area: <strong>{selectedArea}</strong>. Select bins below or tap map pins to mark them as collected.
+                            </p>
+                        </div>
+
+                        <h4 style={{margin: '10px 0 6px 0', fontSize: '0.85rem', color: '#94a3b8'}}>
+                            Bins Needing Collection ({areaBins.filter(b => b.status !== 'EMPTY').length})
+                        </h4>
+
+                        {areaBins.filter(b => b.status !== 'EMPTY').length === 0 ? (
+                            <div className="route-info-panel" style={{color: '#2ecc71', opacity: 0.9}}>
+                                🎉 All bins in {selectedArea} are empty & collected!
+                            </div>
+                        ) : (
+                            <div className="urgent-list">
+                                {areaBins.filter(b => b.status !== 'EMPTY').map(bin => {
+                                    const fillPercent = Math.round((bin.current_fill_kg / bin.capacity_kg) * 100);
+                                    return (
+                                        <div key={bin.id} className="urgent-item" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                            <div>
+                                                <div><b>Bin #{bin.id}</b> • <span style={{color: bin.status === 'FULL' ? '#ef4444' : '#f59e0b'}}>{fillPercent}% ({bin.current_fill_kg.toFixed(1)}/{bin.capacity_kg} kg)</span></div>
+                                                <div className="urgent-item-meta">Status: <strong>{bin.status}</strong></div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleCollectBin(bin.id)}
+                                                style={{
+                                                    background: 'linear-gradient(135deg, #00b09b, #96c93d)',
+                                                    color: '#000',
+                                                    fontWeight: 'bold',
+                                                    border: 'none',
+                                                    padding: '6px 12px',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.78rem'
+                                                }}
+                                            >
+                                                ✓ Collect
+                                            </button>
                                         </div>
                                     );
                                 })}
