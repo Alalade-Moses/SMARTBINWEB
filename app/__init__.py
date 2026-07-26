@@ -1,4 +1,5 @@
-from flask import Flask
+import os
+from flask import Flask, send_from_directory
 from config import Config
 from app.database import db
 from flask_apscheduler import APScheduler
@@ -14,7 +15,8 @@ DEPOT_LOCATION = (28.5355, 77.3910)
 
 
 def create_app(config_class=Config):
-    app = Flask(__name__)
+    frontend_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'frontend', 'build')
+    app = Flask(__name__, static_folder=frontend_folder, static_url_path='')
     app.config.from_object(config_class)
 
     db.init_app(app) 
@@ -76,8 +78,20 @@ def create_app(config_class=Config):
     from app.api.routes import api_bp
     app.register_blueprint(api_bp, url_prefix='/api')
 
+    @app.route('/')
+    def serve_index():
+        if os.path.exists(os.path.join(frontend_folder, 'index.html')):
+            return send_from_directory(frontend_folder, 'index.html')
+        return 'Smart Waste Management System API Active'
+
     @app.route('/hello')
     def hello():
         return 'Hello, Smart Waste System!'
+
+    @app.errorhandler(404)
+    def not_found(e):
+        if os.path.exists(os.path.join(frontend_folder, 'index.html')):
+            return send_from_directory(frontend_folder, 'index.html')
+        return e
 
     return app
