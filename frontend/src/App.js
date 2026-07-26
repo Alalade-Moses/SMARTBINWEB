@@ -208,7 +208,8 @@ function App() {
 
     const handleCollectBin = async (binId) => {
         try {
-            setBins(prev => prev.map(b => b.id === binId ? { ...b, current_fill_kg: 0.0, status: 'EMPTY', predicted_full: null } : b));
+            const nowIso = new Date().toISOString();
+            setBins(prev => prev.map(b => b.id === binId ? { ...b, current_fill_kg: 0.0, status: 'EMPTY', last_collected: nowIso, predicted_full: null } : b));
             setRoute(prevRoute => {
                 if (!prevRoute || !prevRoute.stops) return prevRoute;
                 return {
@@ -216,13 +217,14 @@ function App() {
                     stops: prevRoute.stops.map(s => s.bin_id === binId ? { ...s, status: 'COLLECTED' } : s)
                 };
             });
-            setSelectedBinId(null);
+
             await axios.post(`/api/bins/${binId}/empty`);
-            addToast(`♻️ Bin #${binId} marked as collected! Route stop status updated to COLLECTED.`, "success");
+            addToast(`♻️ Bin #${binId} marked as collected! Stop status updated to COLLECTED.`, "success");
             await fetchData(false);
         } catch (error) {
             console.error("Error collecting bin:", error);
-            addToast(`Could not mark Bin #${binId} as collected.`, "error");
+            const errMsg = error.response?.data?.message || "Could not mark bin as collected.";
+            addToast(`Error: ${errMsg}`, "error");
             await fetchData(false);
         }
     };
@@ -405,9 +407,7 @@ function App() {
         (b.status === 'FULL' || (b.current_fill_kg / b.capacity_kg) >= 0.7) && b.status !== 'EMPTY'
     ), [areaBins]);
 
-    const activeAreaBins = useMemo(() => areaBins.filter(b => b.status !== 'EMPTY'), [areaBins]);
-
-    const visibleBins = showUrgentOnly ? urgentBins : activeAreaBins;
+    const visibleBins = showUrgentOnly ? urgentBins : areaBins;
 
     const areaSummary = useMemo(() => {
         const total = areaBins.length;
@@ -551,8 +551,9 @@ function App() {
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <Marker position={depotPosition} icon={blueIcon}><Popup autoPanPaddingTopLeft={[400, 120]} autoPanPaddingBottomRight={[350, 20]}>Depot</Popup></Marker>
                     {visibleBins.map(bin => {
-                        const stop = route?.stops?.find(s => s.bin_id === bin.id && s.status === 'PENDING');
-                        const icon = stop ? createNumberedIcon(stop.sequence_order) : getBinStatusIcon(bin);
+                        const pendingStop = route?.stops?.find(s => s.bin_id === bin.id && s.status === 'PENDING');
+                        const collectedStop = route?.stops?.find(s => s.bin_id === bin.id && (s.status === 'COLLECTED' || s.status === 'COLLECTED_SKIP'));
+                        const icon = pendingStop ? createNumberedIcon(pendingStop.sequence_order) : getBinStatusIcon(bin);
                         return (
                             <Marker
                                 key={bin.id}
@@ -561,17 +562,18 @@ function App() {
                                 eventHandlers={{ click: () => handleSelectBin(bin.id) }}
                             >
                                 <Popup autoPanPaddingTopLeft={[400, 120]} autoPanPaddingBottomRight={[350, 20]}>
-                                    <b>Bin ID: {bin.id}</b><br />
-                                    {stop && <h3>Stop #{stop.sequence_order} (Pending)</h3>}
-                                    {bin.status === 'EMPTY' && <b style={{color: '#2ecc71'}}>Collected</b>}
+                                    <b>Bin ID: #{bin.id}</b><br />
+                                    {pendingStop && <h3 style={{color: '#f59e0b', margin: '4px 0'}}>Stop #{pendingStop.sequence_order} (Pending)</h3>}
+                                    {collectedStop && <h3 style={{color: '#2ecc71', margin: '4px 0'}}>✓ Stop #{collectedStop.sequence_order} (Collected)</h3>}
+                                    {bin.status === 'EMPTY' && <b style={{color: '#2ecc71', fontSize: '0.95rem'}}>✓ Collected & Emptied</b>}
                                     <br />
                                     <b>Fill:</b> {bin.current_fill_kg.toFixed(1)} / {bin.capacity_kg.toFixed(1)} kg<br />
-                                    <b>Status:</b> {bin.status}<br />
+                                    <b>Status:</b> <span style={{fontWeight: 'bold', color: bin.status === 'EMPTY' ? '#2ecc71' : bin.status === 'FULL' ? '#ef4444' : '#f59e0b'}}>{bin.status}</span><br />
                                     <b>Last Collected:</b> {formatLastCollected(bin.last_collected)}<br />
                                     <b>Est. Full:</b> {bin.predicted_full ? formatPredictedFull(bin.predicted_full) : 'Analyzing...'}<br />
                                     {renderHistorySparkline(bin)}
                                     <br />
-                                    {bin.status !== 'EMPTY' && (
+                                    {bin.status !== 'EMPTY' ? (
                                         <button
                                             onClick={() => handleCollectBin(bin.id)}
                                             style={{
@@ -588,6 +590,23 @@ function App() {
                                             }}
                                         >
                                             ✓ Mark as Collected
+                                        </button>
+                                    ) : (
+                                        <button
+                                            disabled
+                                            style={{
+                                                width: '100%',
+                                                marginTop: '8px',
+                                                background: 'rgba(46, 204, 113, 0.2)',
+                                                border: '1px solid #2ecc71',
+                                                color: '#2ecc71',
+                                                fontWeight: 'bold',
+                                                padding: '8px 12px',
+                                                borderRadius: '6px',
+                                                cursor: 'default'
+                                            }}
+                                        >
+                                            ✓ Collected (0.0 kg)
                                         </button>
                                     )}
                                 </Popup>
