@@ -30,9 +30,12 @@ def populate_initial_bins():
         print("No bins found. Seeding database...")
 
         areas = {
-            "Noida":    (28.5448, 77.3721),
-            "Delhi":    (28.6139, 77.2090),
-            "Gurugram": (28.4595, 77.0266)
+            "Lagos (Ikeja)":            (6.6018, 3.3515),
+            "Lagos (Lekki)":            (6.4698, 3.5852),
+            "Lagos (Victoria Island)":  (6.4281, 3.4219),
+            "Noida":                    (28.5448, 77.3721),
+            "Delhi":                    (28.6139, 77.2090),
+            "Gurugram":                 (28.4595, 77.0266)
         }
 
         for area, (base_lat, base_lon) in areas.items():
@@ -48,7 +51,7 @@ def populate_initial_bins():
                 ))
 
         db.session.commit()
-        print("Initial bins created across 3 areas.")
+        print("Initial bins created across 4 areas including Lagos.")
     else:
         print("Database already contains bins.")
 

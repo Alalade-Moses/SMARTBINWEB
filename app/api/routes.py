@@ -357,7 +357,7 @@ def reset_database():
         import random
         DailyStats.query.delete() 
 
-        areas = ['Noida', 'Delhi', 'Gurugram']
+        areas = ['Lagos (Ikeja)', 'Lagos (Lekki)', 'Lagos (Victoria Island)', 'Noida', 'Delhi', 'Gurugram']
         for i in range(7):
             day = datetime.now(timezone.utc).date() - timedelta(days=i)
             for area in areas:

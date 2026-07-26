@@ -52,6 +52,9 @@ def create_app(config_class=Config):
 
                 # Default depots for each area
                 depots = {
+                    "Lagos (Ikeja)": (6.5950, 3.3420),
+                    "Lagos (Lekki)": (6.4600, 3.5700),
+                    "Lagos (Victoria Island)": (6.4200, 3.4100),
                     "Noida": (28.5355, 77.3910),
                     "Delhi": (28.6139, 77.2090),
                     "Gurugram": (28.4595, 77.0266)
